@@ -1,132 +1,107 @@
 # Nunavut Gallery
 
-A modern, lightweight website for showcasing and selling authentic Inuit art.
+A Cloudflare Worker prototype that displays artwork data extracted from Nunavut Gallery's public Instagram profile. The gallery continues to maintain its catalogue on Instagram; this project provides a separate website and a replaceable import layer.
 
-## Vision
+> This is an experimental interim solution. It does not use the official Instagram API, a Meta app, or access tokens. Instagram can block public requests or change its page structure at any time.
 
-The website uses Instagram as its primary content source.
+## Architecture
 
-Every new artwork is published on Instagram first.
+```text
+Public Instagram profile
+        ↓
+Cloudflare Worker (`src/worker.js`)
+        ↓
+`GET /api/instagram`
+        ↓
+Website (`public/index.html`)
+```
 
-The website automatically displays:
+The root `index.html` remains available for the existing GitHub Pages website. Cloudflare serves `public/index.html` and runs the Worker API.
 
-- artwork images
-- caption from Instagram
-- availability status
-- link to the original Instagram post
+## Imported information
 
-No duplicate content management is required.
+When Instagram exposes readable public post data, the Worker extracts:
 
----
+- image URL;
+- caption;
+- Instagram post URL;
+- explicit CAD price;
+- status terms such as `Sold`, `Reserved`, `On hold`, and `Sale pending`.
 
-## Features
+When no explicit price is found, the website displays **Price and availability on request**. A post without a sold or reserved term is classified internally as `available`, but this means only that no contrary status was detected.
 
-### Current
+## Cache and fallback
 
-- Responsive gallery
-- Artwork detail pages
-- Contact page
-- Price on request
-- Cloudinary image support
+A successful result is treated as fresh for six hours. The cached result is retained for up to seven days so it can be returned with `stale: true` if a later Instagram request fails. This cache improves resilience but is not a permanent database.
 
-### Planned
+If neither current nor cached post data is available, the API returns an error with an empty `posts` array. The website then displays a direct link to `@nunavutgallery`.
 
-- Instagram synchronization
-- Automatic artwork import
-- Availability detection
-- Search
-- Artist pages
-- Categories
-- Related artworks
+## Project structure
 
----
+```text
+.
+├── index.html             # Existing GitHub Pages fallback
+├── public/
+│   └── index.html         # Cloudflare website
+├── src/
+│   └── worker.js          # Worker, importer, parser and cache
+├── test/
+│   └── worker.test.js     # Parser/status/price tests
+├── package.json
+├── package-lock.json
+├── wrangler.jsonc
+└── .gitignore
+```
 
-## Workflow
+## Local development
 
-Instagram
+Requires Node.js and npm.
 
-↓
+```bash
+npm install
+npm test
+npm run dev
+```
 
-Import Service
+Then open `http://localhost:8787`. The API is available at `http://localhost:8787/api/instagram`.
 
-↓
+## Deployment
 
-JSON Database
+Authenticate Wrangler with a Cloudflare account and deploy:
 
-↓
+```bash
+npx wrangler login
+npm run deploy
+```
 
-Website
+Wrangler publishes the static assets in `public/` together with the Worker in `src/worker.js`.
 
-A new Instagram post automatically appears on the website.
+## API response
 
----
+A successful response has this shape:
 
-## Artwork Status
+```json
+{
+  "source": "public-instagram-html",
+  "fetchedAt": "2026-08-05T00:00:00.000Z",
+  "stale": false,
+  "posts": [
+    {
+      "image": "https://...",
+      "caption": "...",
+      "url": "https://www.instagram.com/p/.../",
+      "status": "sold",
+      "statusLabel": "Sold",
+      "price": "$1,850 CAD",
+      "priceLabel": "$1,850 CAD"
+    }
+  ]
+}
+```
 
-The status is controlled directly in the Instagram caption.
+## Limitations
 
-Example:
-
-Status: Available
-
-Status: Reserved
-
-Status: Sold
-
-The website displays a colored badge automatically.
-
----
-
-## Technology
-
-Frontend
-
-- HTML
-- CSS
-- JavaScript
-
-Image Storage
-
-- Instagram (Prototype)
-- Cloudinary (Production)
-
-Hosting
-
-- GitHub
-- Netlify (planned)
-
----
-
-## Future
-
-- automatic Cloudinary backup
-- multiple images
-- artist biographies
-- exhibitions
-- newsletter
-- SEO optimization
-- multilingual support
-
----
-
-## Repository Structure
-
-/
-index.html
-
-style.css
-
-script.js
-
-/images
-
-/data
-
-README.md
-
----
-
-## License
-
-Copyright © Nunavut Gallery
-All artwork remains the property of the respective artists or owners.
+- Instagram may return no post data to Cloudflare.
+- Public HTML structures can change without notice.
+- Extracted statuses and prices are heuristic and should not be treated as guaranteed inventory information.
+- A durable production catalogue should eventually use the official Instagram API or a separately maintained database.
