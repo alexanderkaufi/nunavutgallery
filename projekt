@@ -1,0 +1,64 @@
+# Current Goal
+
+Instagram driven gallery website
+
+---
+
+## Completed
+
+✅ Responsive homepage
+
+✅ Artwork pages
+
+✅ Cloudinary support
+
+---
+
+## In Progress
+
+⬜ Instagram API connection
+
+⬜ Automatic artwork import
+
+⬜ Availability status
+
+---
+
+## Planned
+
+⬜ Search
+
+⬜ Artist pages
+
+⬜ Categories
+
+⬜ Multiple images
+
+⬜ Contact form
+
+⬜ SEO
+
+⬜ Sitemap
+
+⬜ JSON database
+
+---
+
+## Ideas
+
+Instagram should be the CMS.
+
+Website should never require duplicate data entry.
+
+Status should come from Instagram.
+
+Available
+
+Reserved
+
+Sold
+
+Price on request
+
+Future:
+Automatic Cloudinary backup.
