@@ -46,7 +46,7 @@ Version 0.8
 
 Added collection tabs for Newest, All works, Sculptures, Prints, Drawings, and Wallhangings.
 
-Used the 73-work list from the pasted static HTML as a filterable archive, with public prices removed.
+Used the 73-work list from the pasted static HTML as a temporary filterable archive, with public prices removed. This was later replaced because those were old website works, not the current Instagram source.
 
 Kept Newest as the automatic SociableKIT Instagram feed.
 
@@ -57,3 +57,9 @@ Made archive work images larger and reduced card label typography so the objects
 Moved category and status labels from the artwork image area into the lower card text area.
 
 Removed visible category labels from archive cards and replaced the unclear availability text with Instagram and email inquiry links.
+
+Version 0.10
+
+Replaced the old 73-work static archive with the current SociableKIT Instagram feed JSON as the source for filtered cards.
+
+Each card now links to its exact Instagram post and shows "Price on request" instead of the unclear availability text.

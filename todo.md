@@ -24,7 +24,7 @@ High Priority
 
 ☑ Add collection-type guide without creating a second manual product system
 
-☑ Add archive filters from pasted 73-work static list
+☑ Replace old static archive filters with current SociableKIT Instagram post filters
 
 ☐ Decide whether to stay on free SociableKIT plan or upgrade for auto-sync/no branding
 
@@ -36,7 +36,7 @@ Medium
 
 ☐ Search
 
-☑ Search archive works by title or artist
+☑ Search synced Instagram posts by caption/title/artist guess
 
 ☑ Categories
 

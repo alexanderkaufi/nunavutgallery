@@ -183,39 +183,23 @@ public/images/category-wallhangings.jpg
 
 They are representative examples only. They do not create a new inventory system; the live/current work grid remains the SociableKIT Instagram feed.
 
-## August 5, 2026 archive filter update
+## August 5, 2026 Instagram filter correction
 
-The pasted static HTML contained a complete older work list with 73 entries:
+Important correction: the pasted static HTML contained 73 old website works, not the current Instagram inventory. Using those 73 works as the public filtered catalog was the wrong source for the operating goal.
 
-```text
-Sculptures: 24
-Prints: 35
-Drawings: 10
-Wallhangings: 4
-```
-
-That list is now used as a visitor-facing archive/filter, with these views:
+The current page now uses SociableKIT's synced Instagram JSON instead:
 
 ```text
-Newest -> live SociableKIT Instagram feed
-All works -> all 73 archive works
-Sculptures -> archive sculpture works
-Prints -> archive print works
-Drawings -> archive drawing works
-Wallhangings -> archive wallhanging works
+Feed JSON: https://data.accentapi.com/feed/25702890.json
+Verified on August 5, 2026: 30 Instagram posts
+Each post includes a real Instagram link in `link`
 ```
 
-Prices from the pasted file were intentionally not copied into the public UI. Cards show work name, artist, category, status when relevant, and an inquiry link.
+The filtered card grid now loads that JSON in the browser. `All works`, `Sculptures`, `Prints`, `Drawings`, and `Wallhangings` are based on the same Instagram posts, with category inferred from caption text. This is imperfect but automatic. If the caption does not contain useful material/type words, the post remains in `All works` and may not appear in a specific type filter.
 
-This is still a compromise: the archive list is static, while `Newest` remains the automatic Instagram-mirrored source. The gallery team still does not need to maintain this archive unless they later want it updated.
+Cards show the image, a compact title/artist guess from the caption, `Price on request`, a link to the exact Instagram post, and an email inquiry link. Visible category labels such as `Sculpture` are intentionally not shown because the tabs already provide sorting context and the label takes space away from the artwork.
 
-Follow-up: the archive cards were adjusted to make the artwork images more prominent. The image area is taller, image padding is smaller, and card labels/status text are reduced so visitors see the object first.
-
-Follow-up: category and status labels such as `Sculpture` and `Sold` were moved out of the image area and into the lower card text area so they do not cover the artwork.
-
-Follow-up: visible category labels were removed from archive cards because the filter tabs already provide that context and the text took space away from the work. The unclear `Availability by gallery` text was replaced with compact `Instagram` and `Ask` links. The archive list does not contain exact Instagram post URLs per work, so the Instagram link points to the gallery profile; exact post links are only available in the `Newest` feed.
-
-Verification: the archive was compared with the pasted source list on August 5, 2026. The source had 73 works and the current archive has the same 73, with no missing entries. All 73 generated archive image URLs returned HTTP 200 image responses at that time.
+The direct Worker scraper `/api/instagram` still returns Instagram `429`, so the reliable current source remains SociableKIT.
 
 ## Important commits
 
