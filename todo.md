@@ -26,9 +26,11 @@ High Priority
 
 ☑ Replace old static archive filters with current SociableKIT Instagram post filters
 
-☐ Make the Instagram source complete so every Instagram item appears on the website, not only the current 30 synced posts
+☐ Ask SociableKIT support to make widget 25702890 return all synced Instagram posts, not only 30
 
 ☐ Decide whether to stay on free SociableKIT plan or upgrade for auto-sync/no branding
+
+☐ If approved by the gallery, start/upgrade SociableKIT Pro trial for automatic sync/API/export access
 
 Medium
 

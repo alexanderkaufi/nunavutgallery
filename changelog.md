@@ -71,3 +71,9 @@ Removed legacy website fallback traces from the public site: root fallback HTML 
 Changed the filter label from "All works" to "All synced" because the current source is only the synced Instagram feed, not a confirmed complete Instagram archive.
 
 Checked the source limit: SociableKIT currently provides 30 synced posts, while Instagram has more posts available. Getting every item requires a complete Instagram sync source, not legacy website data.
+
+Version 0.12
+
+Changed SociableKIT widget 25702890 Default Photos Count from 24 to 100 and triggered a manual sync.
+
+Verified that SociableKIT settings now report post_count 100 and maximum_data 100, but the public feed JSON still returns 30 posts. The remaining all-post gap must be solved inside SociableKIT, through support or a Pro trial/plan.

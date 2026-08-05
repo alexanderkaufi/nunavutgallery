@@ -203,6 +203,41 @@ Current state:
 - The current SociableKIT JSON source gives us 30 posts, even when requesting a higher limit.
 - To get every Instagram item into the website, the next required step is to make the Instagram source itself complete: adjust/upgrade SociableKIT sync if available, or use an authenticated Instagram API/source.
 
+## August 5, 2026 SociableKIT 100-post attempt
+
+The chosen path remains SociableKIT, not a separate authenticated Instagram/API integration.
+
+What was changed in SociableKIT:
+
+```text
+Widget: 25702890
+Posts tab -> Default Photos Count: 100
+Manual Request sync: triggered
+```
+
+What was verified after the sync:
+
+```text
+https://data.accentapi.com/feed/25702890.json
+settings.post_count: 100
+settings.maximum_data: 100
+posts returned: 30
+```
+
+Meaning: the widget display setting is now ready to show up to 100 posts, but SociableKIT's public feed file still contains only 30 post records. The website cannot display or filter more than SociableKIT provides in that feed.
+
+SociableKIT Free plan notes seen in the dashboard:
+
+- Free includes manual sync requests.
+- Pro includes automatic sync.
+- Pro includes API access.
+
+Next SociableKIT-only options:
+
+- Ask SociableKIT support to increase/fix the synced post records for widget `25702890`.
+- Start/upgrade to the SociableKIT Pro trial/plan if the gallery wants automatic sync and possibly API/export access.
+- Do not replace missing Instagram posts with legacy website data.
+
 ## Important commits
 
 ```text
