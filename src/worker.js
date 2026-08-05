@@ -1,6 +1,8 @@
 const PROFILE_URL = "https://www.instagram.com/nunavutgallery/";
 const FRESH_TTL_SECONDS = 21600;
 const STALE_TTL_SECONDS = 604800;
+const LAST_GOOD_KEY = "data/latest-instagram.json";
+const MEDIA_PREFIX = "media/instagram/";
 
 export default {
   async fetch(request, env, ctx) {
@@ -9,13 +11,16 @@ export default {
       if (request.method !== "GET") {
         return json({ error: "Method not allowed", posts: [] }, 405, { Allow: "GET" });
       }
-      return handleInstagram(request, ctx);
+      return handleInstagram(request, env, ctx);
+    }
+    if (url.pathname.startsWith("/media/")) {
+      return handleMedia(request, env);
     }
     return env.ASSETS.fetch(request);
   }
 };
 
-async function handleInstagram(request, ctx) {
+async function handleInstagram(request, env, ctx) {
   const cache = caches.default;
   const cacheUrl = new URL("/api/instagram-cache", request.url);
   const cacheKey = new Request(cacheUrl.toString(), { method: "GET" });
@@ -37,26 +42,35 @@ async function handleInstagram(request, ctx) {
   try {
     const posts = await scrapePublicProfile();
     if (posts.length) {
+      const mirroredPosts = await mirrorPostImages(posts, env);
       const body = {
         source: "public-instagram-html",
         fetchedAt: new Date().toISOString(),
         stale: false,
-        posts
+        mirroredImages: hasArtworkCache(env),
+        posts: mirroredPosts
       };
       const storedResponse = json(body, 200, {
         "Cache-Control": `public, max-age=${STALE_TTL_SECONDS}`
       });
-      ctx.waitUntil(cache.put(cacheKey, storedResponse));
+      ctx.waitUntil(Promise.all([
+        cache.put(cacheKey, storedResponse),
+        saveLastGood(env, body)
+      ]));
       return json(body, 200, clientCacheHeaders());
     }
 
     if (cachedBody) return staleResponse(cachedBody);
+    const lastGood = await loadLastGood(env);
+    if (lastGood) return staleResponse(lastGood, "Instagram returned no readable public post data.");
     return json({
       error: "Instagram returned no readable public post data.",
       posts: []
     }, 502, noStoreHeaders());
   } catch (error) {
     if (cachedBody) return staleResponse(cachedBody);
+    const lastGood = await loadLastGood(env);
+    if (lastGood) return staleResponse(lastGood, String(error?.message || error));
     return json({
       error: String(error?.message || error),
       posts: []
@@ -69,8 +83,8 @@ function isFresh(fetchedAt) {
   return Number.isFinite(timestamp) && Date.now() - timestamp < FRESH_TTL_SECONDS * 1000;
 }
 
-function staleResponse(body) {
-  return json({ ...body, stale: true }, 200, clientCacheHeaders());
+function staleResponse(body, fallbackReason = "") {
+  return json({ ...body, stale: true, fallbackReason }, 200, clientCacheHeaders());
 }
 
 function clientCacheHeaders() {
@@ -93,6 +107,96 @@ async function scrapePublicProfile() {
 
   if (!response.ok) throw new Error(`Instagram responded with ${response.status}`);
   return extractPostsFromHtml(await response.text());
+}
+
+async function handleMedia(request, env) {
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return json({ error: "Method not allowed" }, 405, { Allow: "GET, HEAD" });
+  }
+  if (!hasArtworkCache(env)) return new Response("Media cache is not configured.", { status: 404 });
+
+  const url = new URL(request.url);
+  const key = decodeURIComponent(url.pathname.slice(1));
+  if (!key.startsWith(MEDIA_PREFIX) || key.includes("..")) {
+    return new Response("Not found.", { status: 404 });
+  }
+
+  const object = await env.ARTWORK_CACHE.get(key);
+  if (!object) return new Response("Not found.", { status: 404 });
+
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set("etag", object.httpEtag);
+  headers.set("Cache-Control", "public, max-age=604800, immutable");
+  return new Response(request.method === "HEAD" ? null : object.body, { headers });
+}
+
+async function mirrorPostImages(posts, env) {
+  if (!hasArtworkCache(env)) return posts;
+
+  const mirrored = [];
+  for (let index = 0; index < posts.length; index += 1) {
+    mirrored.push(await mirrorPostImage(posts[index], index, env));
+  }
+  return mirrored;
+}
+
+async function mirrorPostImage(post, index, env) {
+  const key = mediaObjectKeyForPost(post, index);
+  if (!key) return post;
+
+  try {
+    const existing = await env.ARTWORK_CACHE.head(key);
+    if (existing) return { ...post, image: `/${key}` };
+
+    const response = await fetch(post.image, {
+      headers: {
+        Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        "User-Agent": "Mozilla/5.0 (compatible; NunavutGalleryWebsite/1.0; +https://www.nunavutgallery.com/)"
+      },
+      cf: { cacheTtl: STALE_TTL_SECONDS, cacheEverything: true }
+    });
+    if (!response.ok) return post;
+
+    const contentType = response.headers.get("Content-Type") || "image/jpeg";
+    if (!contentType.toLowerCase().startsWith("image/")) return post;
+
+    const contentLength = Number(response.headers.get("Content-Length") || "0");
+    if (contentLength > 10 * 1024 * 1024) return post;
+
+    await env.ARTWORK_CACHE.put(key, response.body, {
+      httpMetadata: { contentType },
+      customMetadata: {
+        source: "instagram",
+        sourceUrl: post.url,
+        cachedAt: new Date().toISOString()
+      }
+    });
+    return { ...post, image: `/${key}` };
+  } catch {
+    return post;
+  }
+}
+
+async function saveLastGood(env, body) {
+  if (!hasArtworkCache(env)) return;
+  await env.ARTWORK_CACHE.put(LAST_GOOD_KEY, JSON.stringify(body), {
+    httpMetadata: { contentType: "application/json; charset=utf-8" },
+    customMetadata: { savedAt: new Date().toISOString() }
+  });
+}
+
+async function loadLastGood(env) {
+  if (!hasArtworkCache(env)) return null;
+  try {
+    return await env.ARTWORK_CACHE.get(LAST_GOOD_KEY, "json");
+  } catch {
+    return null;
+  }
+}
+
+function hasArtworkCache(env) {
+  return Boolean(env?.ARTWORK_CACHE);
 }
 
 export function extractPostsFromHtml(html) {
@@ -172,8 +276,9 @@ function collectFromJson(value, output, seen = new WeakSet()) {
 }
 
 export function normalizePost(item) {
-  const caption = decodeHtml(String(item.caption || "")).trim();
-  const lower = caption.toLowerCase();
+  const originalCaption = decodeHtml(String(item.caption || "")).trim();
+  const caption = redactPriceMentions(originalCaption);
+  const lower = originalCaption.toLowerCase();
   let status = "available";
   let statusLabel = "";
 
@@ -185,8 +290,7 @@ export function normalizePost(item) {
     statusLabel = "Reserved";
   }
 
-  const price = extractPrice(caption);
-  const priceLabel = price || "Price and availability on request";
+  const priceLabel = "Price and availability on request";
   const url = /^https:\/\/www\.instagram\.com\/(?:p|reel|tv)\/[A-Za-z0-9_-]+\/?/.test(item.url || "")
     ? item.url
     : PROFILE_URL;
@@ -197,16 +301,49 @@ export function normalizePost(item) {
     url,
     status,
     statusLabel,
-    price,
+    price: null,
     priceLabel,
     label: statusLabel || priceLabel
   };
 }
 
-export function extractPrice(caption) {
+export function redactPriceMentions(caption) {
   const amount = "(?:[\\d]{1,3}(?:[,.][\\d]{3})+|[\\d]+)(?:\\.[\\d]{2})?";
-  const match = String(caption).match(new RegExp(`(?:CAD\\s*)?\\$\\s?${amount}(?:\\s*CAD)?|\\b${amount}\\s*CAD\\b`, "i"));
-  return match ? match[0].replace(/\s+/g, " ").trim() : null;
+  const label = "(?:\\b(?:price|asking)\\s*:?\\s*)?";
+  return String(caption)
+    .replace(new RegExp(`${label}(?:CAD\\s*)?\\$\\s?${amount}(?:\\s*CAD)?|${label}\\b${amount}\\s*CAD\\b`, "gi"), "Price on request")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+export function mediaObjectKeyForPost(post, index = 0) {
+  if (!post?.image || !/^https?:\/\//.test(post.image)) return "";
+  const shortcode = instagramShortcode(post.url);
+  const base = shortcode || stableHash(post.image);
+  const extension = imageExtension(post.image);
+  return `${MEDIA_PREFIX}${base}-${index + 1}${extension}`;
+}
+
+function instagramShortcode(url) {
+  const match = String(url || "").match(/^https:\/\/www\.instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)\/?/);
+  return match ? match[1] : "";
+}
+
+function imageExtension(url) {
+  try {
+    const extension = new URL(url).pathname.match(/\.(jpe?g|png|webp|gif|avif)$/i)?.[0];
+    return extension ? extension.toLowerCase().replace(".jpeg", ".jpg") : ".jpg";
+  } catch {
+    return ".jpg";
+  }
+}
+
+function stableHash(value) {
+  let hash = 5381;
+  for (const character of String(value)) {
+    hash = ((hash << 5) + hash + character.codePointAt(0)) >>> 0;
+  }
+  return hash.toString(36);
 }
 
 function firstString(...values) {

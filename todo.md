@@ -1,16 +1,28 @@
 High Priority
 
-☐ Connect Instagram API
+☐ Create Cloudflare R2 bucket: nunavut-gallery-artwork-cache
 
-☐ Import newest posts
+☑ Import newest posts from public Instagram data
 
-☐ Parse captions
+☑ Parse captions
 
-☐ Detect status
+☑ Detect status
 
-☐ Build gallery
+☑ Build gallery
+
+☑ Hide public prices
+
+☑ Return last good in-memory/cache response
+
+☑ Add optional R2 image mirroring and last-good JSON storage
+
+☐ Deploy Worker with R2 binding
+
+☐ Verify that /media/... images load after deployment
 
 Medium
+
+☐ Add admin-only import diagnostics
 
 ☐ Artist pages
 

@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extractPostsFromHtml, extractPrice, normalizePost } from "../src/worker.js";
+import { extractPostsFromHtml, mediaObjectKeyForPost, normalizePost, redactPriceMentions } from "../src/worker.js";
 
-test("recognizes sold status and keeps an explicit price", () => {
+test("recognizes sold status and hides explicit prices", () => {
   const post = normalizePost({
     image: "https://cdn.example/art.jpg",
     caption: "Stone carving — SOLD — $1,850 CAD",
@@ -10,8 +10,9 @@ test("recognizes sold status and keeps an explicit price", () => {
   });
   assert.equal(post.status, "sold");
   assert.equal(post.statusLabel, "Sold");
-  assert.equal(post.price, "$1,850 CAD");
-  assert.equal(post.priceLabel, "$1,850 CAD");
+  assert.equal(post.price, null);
+  assert.equal(post.priceLabel, "Price and availability on request");
+  assert.equal(post.caption, "Stone carving — SOLD — Price on request");
 });
 
 test("maps hold terminology to reserved", () => {
@@ -29,10 +30,10 @@ test("uses the request message when status and price are unknown", () => {
   assert.equal(post.priceLabel, "Price and availability on request");
 });
 
-test("extracts supported CAD price formats", () => {
-  assert.equal(extractPrice("Price $1,850"), "$1,850");
-  assert.equal(extractPrice("Price: CAD $2,400"), "CAD $2,400");
-  assert.equal(extractPrice("Asking 1850 CAD"), "1850 CAD");
+test("redacts supported CAD price formats from public captions", () => {
+  assert.equal(redactPriceMentions("Price $1,850"), "Price on request");
+  assert.equal(redactPriceMentions("Price: CAD $2,400"), "Price on request");
+  assert.equal(redactPriceMentions("Asking 1850 CAD"), "Price on request");
 });
 
 test("extracts and deduplicates posts from JSON-LD", () => {
@@ -44,7 +45,8 @@ test("extracts and deduplicates posts from JSON-LD", () => {
   const posts = extractPostsFromHtml(html);
   assert.equal(posts.length, 1);
   assert.equal(posts[0].status, "reserved");
-  assert.equal(posts[0].price, "950 CAD");
+  assert.equal(posts[0].price, null);
+  assert.equal(posts[0].priceLabel, "Price and availability on request");
 });
 
 test("rejects non-Instagram post links", () => {
@@ -54,4 +56,20 @@ test("rejects non-Instagram post links", () => {
     url: "https://malicious.example/"
   });
   assert.equal(post.url, "https://www.instagram.com/nunavutgallery/");
+});
+
+test("creates stable media cache keys for Instagram posts", () => {
+  const key = mediaObjectKeyForPost({
+    image: "https://cdn.example/images/work.jpeg?size=l",
+    url: "https://www.instagram.com/p/ABC123/"
+  });
+  assert.equal(key, "media/instagram/ABC123-1.jpg");
+});
+
+test("creates hashed media cache keys when no shortcode is available", () => {
+  const key = mediaObjectKeyForPost({
+    image: "https://cdn.example/images/work.webp",
+    url: "https://www.instagram.com/nunavutgallery/"
+  }, 2);
+  assert.match(key, /^media\/instagram\/[a-z0-9]+-3\.webp$/);
 });
