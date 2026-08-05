@@ -213,6 +213,10 @@ Follow-up: the archive cards were adjusted to make the artwork images more promi
 
 Follow-up: category and status labels such as `Sculpture` and `Sold` were moved out of the image area and into the lower card text area so they do not cover the artwork.
 
+Follow-up: visible category labels were removed from archive cards because the filter tabs already provide that context and the text took space away from the work. The unclear `Availability by gallery` text was replaced with compact `Instagram` and `Ask` links. The archive list does not contain exact Instagram post URLs per work, so the Instagram link points to the gallery profile; exact post links are only available in the `Newest` feed.
+
+Verification: the archive was compared with the pasted source list on August 5, 2026. The source had 73 works and the current archive has the same 73, with no missing entries. All 73 generated archive image URLs returned HTTP 200 image responses at that time.
+
 ## Important commits
 
 ```text

@@ -55,3 +55,5 @@ Version 0.9
 Made archive work images larger and reduced card label typography so the objects are more prominent.
 
 Moved category and status labels from the artwork image area into the lower card text area.
+
+Removed visible category labels from archive cards and replaced the unclear availability text with Instagram and email inquiry links.
