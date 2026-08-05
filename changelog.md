@@ -35,3 +35,9 @@ Kept the actual gallery grid as latest Instagram posts so the website still foll
 Cropped the raven hero image with CSS so the photographed side edges are less visible.
 
 Removed fixed public "Price on request" wording from the page copy.
+
+Version 0.7
+
+Changed the collection-type guide from text-only boxes to visual object cards.
+
+Stored four representative category images locally so those areas show actual works and do not depend on broken old image paths.

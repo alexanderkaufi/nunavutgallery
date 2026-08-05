@@ -172,6 +172,17 @@ The fixed page text also avoids public "Price on request" wording. Availability 
 
 The raven hero image is now cropped in a fixed portrait frame with CSS (`object-fit: cover`) so the photographed white side edges are less visible on the front page.
 
+Follow-up: the collection-type guide was updated from text-only cards to visual cards because the selection areas otherwise did not show actual objects. The four example images are stored locally:
+
+```text
+public/images/category-sculptures.jpg
+public/images/category-prints.jpg
+public/images/category-drawings.jpg
+public/images/category-wallhangings.jpg
+```
+
+They are representative examples only. They do not create a new inventory system; the live/current work grid remains the SociableKIT Instagram feed.
+
 ## Important commits
 
 ```text
