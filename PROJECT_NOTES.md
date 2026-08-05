@@ -183,6 +183,32 @@ public/images/category-wallhangings.jpg
 
 They are representative examples only. They do not create a new inventory system; the live/current work grid remains the SociableKIT Instagram feed.
 
+## August 5, 2026 archive filter update
+
+The pasted static HTML contained a complete older work list with 73 entries:
+
+```text
+Sculptures: 24
+Prints: 35
+Drawings: 10
+Wallhangings: 4
+```
+
+That list is now used as a visitor-facing archive/filter, with these views:
+
+```text
+Newest -> live SociableKIT Instagram feed
+All works -> all 73 archive works
+Sculptures -> archive sculpture works
+Prints -> archive print works
+Drawings -> archive drawing works
+Wallhangings -> archive wallhanging works
+```
+
+Prices from the pasted file were intentionally not copied into the public UI. Cards show work name, artist, category, status when relevant, and an inquiry link.
+
+This is still a compromise: the archive list is static, while `Newest` remains the automatic Instagram-mirrored source. The gallery team still does not need to maintain this archive unless they later want it updated.
+
 ## Important commits
 
 ```text

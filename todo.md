@@ -24,6 +24,8 @@ High Priority
 
 ☑ Add collection-type guide without creating a second manual product system
 
+☑ Add archive filters from pasted 73-work static list
+
 ☐ Decide whether to stay on free SociableKIT plan or upgrade for auto-sync/no branding
 
 Medium
@@ -33,6 +35,8 @@ Medium
 ☐ Artist pages
 
 ☐ Search
+
+☑ Search archive works by title or artist
 
 ☑ Categories
 

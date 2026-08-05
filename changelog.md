@@ -41,3 +41,11 @@ Version 0.7
 Changed the collection-type guide from text-only boxes to visual object cards.
 
 Stored four representative category images locally so those areas show actual works and do not depend on broken old image paths.
+
+Version 0.8
+
+Added collection tabs for Newest, All works, Sculptures, Prints, Drawings, and Wallhangings.
+
+Used the 73-work list from the pasted static HTML as a filterable archive, with public prices removed.
+
+Kept Newest as the automatic SociableKIT Instagram feed.
