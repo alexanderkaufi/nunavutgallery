@@ -211,6 +211,8 @@ This is still a compromise: the archive list is static, while `Newest` remains t
 
 Follow-up: the archive cards were adjusted to make the artwork images more prominent. The image area is taller, image padding is smaller, and card labels/status text are reduced so visitors see the object first.
 
+Follow-up: category and status labels such as `Sculpture` and `Sold` were moved out of the image area and into the lower card text area so they do not cover the artwork.
+
 ## Important commits
 
 ```text
