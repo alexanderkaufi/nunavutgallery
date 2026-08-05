@@ -1,14 +1,14 @@
 High Priority
 
-☐ Create Cloudflare R2 bucket: nunavut-gallery-artwork-cache
+☑ Create Cloudflare R2 bucket: nunavut-gallery-artwork-cache
 
-☑ Import newest posts from public Instagram data
+☒ Import newest posts from public Instagram data
 
-☑ Parse captions
+☒ Parse captions
 
-☑ Detect status
+☒ Detect status
 
-☑ Build gallery
+☑ Build gallery with SociableKIT feed
 
 ☑ Hide public prices
 
@@ -16,9 +16,11 @@ High Priority
 
 ☑ Add optional R2 image mirroring and last-good JSON storage
 
-☐ Deploy Worker with R2 binding
+☑ Deploy Worker with R2 binding
 
-☐ Verify that /media/... images load after deployment
+☑ Verify SociableKIT feed loads on Cloudflare page
+
+☐ Decide whether to stay on free SociableKIT plan or upgrade for auto-sync/no branding
 
 Medium
 

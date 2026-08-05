@@ -8,3 +8,8 @@ Preise bleiben auf der Webseite verborgen. Oeffentlich erscheint nur:
 Price and availability on request
 
 Das ist die optimale Zwischenloesung, bis es spaeter eventuell eine stabilere offizielle Instagram-API-Anbindung oder eine sehr einfache interne Pflegeoberflaeche gibt.
+
+Aktueller Stand:
+Der eigene Cloudflare-Instagram-Scraper wurde gebaut und deployed, aber Instagram blockiert die Abfrage mit HTTP 429. Deshalb nutzt die sichtbare Webseite jetzt SociableKIT als Feed-Dienst. SociableKIT akzeptierte `nunavutgallery` als oeffentliches Instagram-Profil und liefert echte Bilder und Captions.
+
+Details stehen in PROJECT_NOTES.md.
