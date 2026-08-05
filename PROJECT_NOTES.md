@@ -137,6 +137,23 @@ This keeps the gallery team from learning a second system.
 - Captions come from Instagram and may include text exactly as posted.
 - Public price hiding is handled by our own Worker scraper, but the SociableKIT embed displays the Instagram feed as provided by SociableKIT. If prices are never posted on Instagram, this is fine.
 
+## August 5, 2026 update
+
+The attached raven artwork, which is also used as an Instagram-style profile image, was added as the prominent first-viewport image:
+
+```text
+public/images/nunavut-gallery-raven-profile.jpg
+```
+
+SociableKIT was also adjusted because the widget initially showed only 9 posts before the visitor had to click **Load more posts**. The setting **Default Photos Count** was changed from `9` to `24` in the SociableKIT widget so more images load immediately.
+
+If some images still do not appear, likely causes are:
+
+- SociableKIT free-plan sync/cache limits;
+- browser lazy-loading while scrolling;
+- individual Instagram media not yet synced by SociableKIT;
+- temporary CDN/image loading delays.
+
 ## Important commits
 
 ```text

@@ -20,6 +20,8 @@ High Priority
 
 ☑ Verify SociableKIT feed loads on Cloudflare page
 
+☑ Add raven profile artwork to first screen
+
 ☐ Decide whether to stay on free SociableKIT plan or upgrade for auto-sync/no branding
 
 Medium
