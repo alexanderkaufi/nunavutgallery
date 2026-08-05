@@ -26,6 +26,8 @@ High Priority
 
 ☑ Replace old static archive filters with current SociableKIT Instagram post filters
 
+☐ Make the Instagram source complete so every Instagram item appears on the website, not only the current 30 synced posts
+
 ☐ Decide whether to stay on free SociableKIT plan or upgrade for auto-sync/no branding
 
 Medium

@@ -3,6 +3,12 @@ const FRESH_TTL_SECONDS = 21600;
 const STALE_TTL_SECONDS = 604800;
 const LAST_GOOD_KEY = "data/latest-instagram.json";
 const MEDIA_PREFIX = "media/instagram/";
+const LEGACY_ASSET_PATHS = new Set([
+  "/images/category-sculptures.jpg",
+  "/images/category-prints.jpg",
+  "/images/category-drawings.jpg",
+  "/images/category-wallhangings.jpg"
+]);
 
 export default {
   async fetch(request, env, ctx) {
@@ -15,6 +21,12 @@ export default {
     }
     if (url.pathname.startsWith("/media/")) {
       return handleMedia(request, env);
+    }
+    if (LEGACY_ASSET_PATHS.has(url.pathname)) {
+      return new Response("Not found.", {
+        status: 404,
+        headers: noStoreHeaders()
+      });
     }
     return env.ASSETS.fetch(request);
   }

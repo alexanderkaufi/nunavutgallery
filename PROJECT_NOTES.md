@@ -66,7 +66,7 @@ What happened:
 
 Instagram blocked Cloudflare's automatic request with HTTP `429`. We waited several hours and tested again; the result stayed `429`. This means the custom public scraper is not reliable enough as the main production path.
 
-The Worker code is still useful as a fallback or future import layer, but the visible website should not depend on it for now.
+The Worker code is still useful as a future import layer if Instagram access can be made reliable, but the visible website should not depend on the blocked scraper for now.
 
 ## What worked
 
@@ -172,34 +172,36 @@ The fixed page text also avoids public "Price on request" wording. Availability 
 
 The raven hero image is now cropped in a fixed portrait frame with CSS (`object-fit: cover`) so the photographed white side edges are less visible on the front page.
 
-Follow-up: the collection-type guide was updated from text-only cards to visual cards because the selection areas otherwise did not show actual objects. The four example images are stored locally:
-
-```text
-public/images/category-sculptures.jpg
-public/images/category-prints.jpg
-public/images/category-drawings.jpg
-public/images/category-wallhangings.jpg
-```
-
-They are representative examples only. They do not create a new inventory system; the live/current work grid remains the SociableKIT Instagram feed.
+Follow-up: the collection-type guide with representative local category images was removed again. It was visually useful, but those pictures came from the previous manual site source and could be mistaken for a second inventory. The interim website must not use legacy catalogue material as a data fallback.
 
 ## August 5, 2026 Instagram filter correction
 
-Important correction: the pasted static HTML contained 73 old website works, not the current Instagram inventory. Using those 73 works as the public filtered catalog was the wrong source for the operating goal.
+Important correction: the pasted static HTML was not the current Instagram inventory. Using it as the public filtered catalog was the wrong source for the operating goal.
 
 The current page now uses SociableKIT's synced Instagram JSON instead:
 
 ```text
 Feed JSON: https://data.accentapi.com/feed/25702890.json
-Verified on August 5, 2026: 30 Instagram posts
+Verified on August 5, 2026: 30 synced Instagram posts
 Each post includes a real Instagram link in `link`
 ```
 
-The filtered card grid now loads that JSON in the browser. `All works`, `Sculptures`, `Prints`, `Drawings`, and `Wallhangings` are based on the same Instagram posts, with category inferred from caption text. This is imperfect but automatic. If the caption does not contain useful material/type words, the post remains in `All works` and may not appear in a specific type filter.
+The filtered card grid now loads that JSON in the browser. `All synced`, `Sculptures`, `Prints`, `Drawings`, and `Wallhangings` are based on the same synced Instagram posts, with category inferred from caption text. This is imperfect but automatic. If the caption does not contain useful material/type words, the post remains in `All synced` and may not appear in a specific type filter.
 
 Cards show the image, a compact title/artist guess from the caption, `Price on request`, a link to the exact Instagram post, and an email inquiry link. Visible category labels such as `Sculpture` are intentionally not shown because the tabs already provide sorting context and the label takes space away from the artwork.
 
 The direct Worker scraper `/api/instagram` still returns Instagram `429`, so the reliable current source remains SociableKIT.
+
+## August 5, 2026 all-post source check
+
+The public Instagram account has more posts than the current 30-post SociableKIT JSON feed. Direct Instagram pagination showed more posts are available, but anonymous/server-side loading is unstable and can be blocked or require login.
+
+Current state:
+
+- Do not use the old manual website catalogue as fallback data.
+- The live website only uses the synced Instagram feed and the embedded Instagram widget.
+- The current SociableKIT JSON source gives us 30 posts, even when requesting a higher limit.
+- To get every Instagram item into the website, the next required step is to make the Instagram source itself complete: adjust/upgrade SociableKIT sync if available, or use an authenticated Instagram API/source.
 
 ## Important commits
 

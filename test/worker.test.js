@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extractPostsFromHtml, mediaObjectKeyForPost, normalizePost, redactPriceMentions } from "../src/worker.js";
+import worker, { extractPostsFromHtml, mediaObjectKeyForPost, normalizePost, redactPriceMentions } from "../src/worker.js";
 
 test("recognizes sold status and hides explicit prices", () => {
   const post = normalizePost({
@@ -72,4 +72,11 @@ test("creates hashed media cache keys when no shortcode is available", () => {
     url: "https://www.instagram.com/nunavutgallery/"
   }, 2);
   assert.match(key, /^media\/instagram\/[a-z0-9]+-3\.webp$/);
+});
+
+test("blocks legacy category artwork assets", async () => {
+  const response = await worker.fetch(new Request("https://example.com/images/category-sculptures.jpg"), {
+    ASSETS: { fetch: () => new Response("legacy asset") }
+  });
+  assert.equal(response.status, 404);
 });

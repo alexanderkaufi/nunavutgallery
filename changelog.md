@@ -46,7 +46,7 @@ Version 0.8
 
 Added collection tabs for Newest, All works, Sculptures, Prints, Drawings, and Wallhangings.
 
-Used the 73-work list from the pasted static HTML as a temporary filterable archive, with public prices removed. This was later replaced because those were old website works, not the current Instagram source.
+Temporarily tried the pasted static HTML as a filterable archive, with public prices removed. This was later replaced because it was not the current Instagram source.
 
 Kept Newest as the automatic SociableKIT Instagram feed.
 
@@ -60,6 +60,14 @@ Removed visible category labels from archive cards and replaced the unclear avai
 
 Version 0.10
 
-Replaced the old 73-work static archive with the current SociableKIT Instagram feed JSON as the source for filtered cards.
+Replaced the temporary static archive with the current SociableKIT Instagram feed JSON as the source for filtered cards.
 
 Each card now links to its exact Instagram post and shows "Price on request" instead of the unclear availability text.
+
+Version 0.11
+
+Removed legacy website fallback traces from the public site: root fallback HTML and representative category images are gone.
+
+Changed the filter label from "All works" to "All synced" because the current source is only the synced Instagram feed, not a confirmed complete Instagram archive.
+
+Checked the source limit: SociableKIT currently provides 30 synced posts, while Instagram has more posts available. Getting every item requires a complete Instagram sync source, not legacy website data.
