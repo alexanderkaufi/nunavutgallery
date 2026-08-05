@@ -154,11 +154,30 @@ If some images still do not appear, likely causes are:
 - individual Instagram media not yet synced by SociableKIT;
 - temporary CDN/image loading delays.
 
+## August 5, 2026 collection layout update
+
+The earlier static catalog design had useful visitor orientation: sculptures, prints, drawings, and wallhangings were easy to understand at a glance. We did not restore the old manual item grid because that would create a second system for the gallery team to maintain.
+
+Instead, the public page now uses a hybrid layout:
+
+```text
+Short collection-type guide
+        ↓
+Automatic latest Instagram posts from SociableKIT
+```
+
+This keeps the site simple for visitors while preserving the operating rule: the gallery team only posts to Instagram, and the website mirrors that public feed.
+
+The fixed page text also avoids public "Price on request" wording. Availability is framed as something confirmed by the gallery.
+
+The raven hero image is now cropped in a fixed portrait frame with CSS (`object-fit: cover`) so the photographed white side edges are less visible on the front page.
+
 ## Important commits
 
 ```text
 522dcc4 Add resilient Instagram mirror cache
 5772780 Embed SociableKIT Instagram feed
+1b9121a Add raven hero image and expand feed
 ```
 
 ## Local note

@@ -25,3 +25,13 @@ Version 0.5
 Added raven artwork as prominent front-page hero image.
 
 Changed SociableKIT Default Photos Count from 9 to 24 so more Instagram posts appear before Load more.
+
+Version 0.6
+
+Added a short collection-type guide for sculptures, prints, drawings, and wallhangings before the Instagram feed.
+
+Kept the actual gallery grid as latest Instagram posts so the website still follows Instagram automatically.
+
+Cropped the raven hero image with CSS so the photographed side edges are less visible.
+
+Removed fixed public "Price on request" wording from the page copy.

@@ -22,6 +22,8 @@ High Priority
 
 ☑ Add raven profile artwork to first screen
 
+☑ Add collection-type guide without creating a second manual product system
+
 ☐ Decide whether to stay on free SociableKIT plan or upgrade for auto-sync/no branding
 
 Medium
@@ -32,7 +34,7 @@ Medium
 
 ☐ Search
 
-☐ Categories
+☑ Categories
 
 Low
 
