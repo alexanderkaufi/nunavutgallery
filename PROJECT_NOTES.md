@@ -209,6 +209,8 @@ Prices from the pasted file were intentionally not copied into the public UI. Ca
 
 This is still a compromise: the archive list is static, while `Newest` remains the automatic Instagram-mirrored source. The gallery team still does not need to maintain this archive unless they later want it updated.
 
+Follow-up: the archive cards were adjusted to make the artwork images more prominent. The image area is taller, image padding is smaller, and card labels/status text are reduced so visitors see the object first.
+
 ## Important commits
 
 ```text

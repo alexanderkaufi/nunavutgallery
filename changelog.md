@@ -49,3 +49,7 @@ Added collection tabs for Newest, All works, Sculptures, Prints, Drawings, and W
 Used the 73-work list from the pasted static HTML as a filterable archive, with public prices removed.
 
 Kept Newest as the automatic SociableKIT Instagram feed.
+
+Version 0.9
+
+Made archive work images larger and reduced card label typography so the objects are more prominent.
