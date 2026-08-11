@@ -52,14 +52,14 @@
         <p>Start with the embedded Instagram feed, or use the filters below to browse the same synced Instagram posts by inferred work type.</p>
       </div>
       <div class="filters" role="tablist" aria-label="Collection filter">
-        <button class="filter active" type="button" data-view="newest">Newest</button>
-        <button class="filter" type="button" data-view="all">All synced</button>
+        <button class="filter" type="button" data-view="newest">Newest</button>
+        <button class="filter active" type="button" data-view="all">All synced</button>
         <button class="filter" type="button" data-view="sculpture">Sculptures</button>
         <button class="filter" type="button" data-view="print">Prints</button>
         <button class="filter" type="button" data-view="drawing">Drawings</button>
         <button class="filter" type="button" data-view="wallhanging">Wallhangings</button>
       </div>
-      <div id="newest-panel" class="browse-panel">
+      <div id="newest-panel" class="browse-panel" hidden>
         <div class="feed-shell">
           <div class="sk-instagram-feed" data-embed-id="25702890"></div>
           <div class="feed-fallback">
@@ -67,7 +67,7 @@
           </div>
         </div>
       </div>
-      <div id="catalog-panel" class="browse-panel" hidden>
+      <div id="catalog-panel" class="browse-panel">
         <div class="catalog-tools">
           <input class="search" id="catalog-search" type="search" placeholder="Search Instagram posts" aria-label="Search Instagram posts">
           <span class="count" id="catalog-count"></span>
@@ -79,9 +79,9 @@
   <footer><div class="footer-inner"><span>© <span id="year"></span> Nunavut Gallery</span><a href="https://www.instagram.com/nunavutgallery/" target="_blank" rel="noopener">@nunavutgallery</a></div></footer>
   <script src="https://widgets.sociablekit.com/instagram-feed/widget.js" defer></script>
   <script>
-    const feedUrl = "https://data.accentapi.com/feed/25702890.json";
+    const feedUrls = ["/api/instagram?limit=100", "https://data.accentapi.com/feed/25702890.json"];
     let instagramWorks = [];
-    let activeView = "newest";
+    let activeView = "all";
 
     function esc(value) {
       return String(value).replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
@@ -121,15 +121,15 @@
     }
 
     function normalizePost(post) {
-      const caption = post.pic_text_raw || post.pic_text || "";
+      const caption = post.caption || post.pic_text_raw || post.pic_text || "";
       return {
         category: categoryFromCaption(caption),
         title: titleFromCaption(caption),
         artist: artistFromCaption(caption),
         caption: compactText(caption),
-        image: post.image_url || post.thumbnail_url || post.thumbnail || post.pic_src || post.full_pic_src || "",
-        link: post.link || (post.code ? "https://www.instagram.com/p/" + post.code + "/" : "https://www.instagram.com/nunavutgallery/"),
-        status: statusFromCaption(caption)
+        image: post.image || post.image_url || post.thumbnail_url || post.thumbnail || post.pic_src || post.full_pic_src || "",
+        link: post.url || post.link || (post.code ? "https://www.instagram.com/p/" + post.code + "/" : "https://www.instagram.com/nunavutgallery/"),
+        status: post.statusLabel || statusFromCaption(caption)
       };
     }
 
@@ -137,15 +137,30 @@
       const count = document.querySelector("#catalog-count");
       count.textContent = "Loading Instagram posts...";
       try {
-        const response = await fetch(feedUrl + "?nocache=" + Date.now());
-        if (!response.ok) throw new Error("Feed responded with " + response.status);
-        const data = await response.json();
+        const data = await fetchFirstAvailableFeed();
         instagramWorks = (data.posts || []).map(normalizePost).filter(work => work.image);
         renderCatalog();
       } catch (error) {
         count.textContent = "Instagram posts could not be loaded.";
         document.querySelector("#catalog-grid").innerHTML = '<div class="state">Instagram posts could not be loaded. <a href="https://www.instagram.com/nunavutgallery/" target="_blank" rel="noopener">Open Instagram</a></div>';
       }
+    }
+
+    async function fetchFirstAvailableFeed() {
+      let lastError = null;
+      for (const feedUrl of feedUrls) {
+        try {
+          const separator = feedUrl.includes("?") ? "&" : "?";
+          const response = await fetch(feedUrl + separator + "nocache=" + Date.now());
+          if (!response.ok) throw new Error("Feed responded with " + response.status);
+          const data = await response.json();
+          if (Array.isArray(data.posts)) return data;
+          throw new Error("Feed returned no posts array");
+        } catch (error) {
+          lastError = error;
+        }
+      }
+      throw lastError || new Error("No feed available");
     }
 
     function renderCatalog() {
@@ -187,6 +202,7 @@
     document.querySelectorAll(".filter").forEach(button => button.addEventListener("click", () => setView(button.dataset.view)));
     document.querySelector("#catalog-search").addEventListener("input", renderCatalog);
     document.querySelector("#year").textContent = new Date().getFullYear();
+    loadInstagramWorks();
   </script>
 </body>
 </html>

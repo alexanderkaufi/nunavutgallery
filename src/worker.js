@@ -1,6 +1,8 @@
 const PROFILE_URL = "https://www.instagram.com/nunavutgallery/";
 const FRESH_TTL_SECONDS = 21600;
 const STALE_TTL_SECONDS = 604800;
+const DEFAULT_POST_LIMIT = 100;
+const MAX_POST_LIMIT = 100;
 const LAST_GOOD_KEY = "data/latest-instagram.json";
 const MEDIA_PREFIX = "media/instagram/";
 const AUTOMATION_STATE_KEY = "state/automation-policy.json";
@@ -76,7 +78,7 @@ async function handleInstagram(request, env, ctx) {
     return json({ ...cachedBody, stale: false }, 200, clientCacheHeaders());
   }
 
-  const config = automationConfig(env);
+  const config = automationConfig(env, request);
   try {
     const posts = await loadInstagramPosts(env, config);
     if (posts.length) {
@@ -133,13 +135,15 @@ function noStoreHeaders() {
   return { "Cache-Control": "no-store" };
 }
 
-function automationConfig(env = {}) {
+function automationConfig(env = {}, request = null) {
   const officialApiConfigured = Boolean(env.INSTAGRAM_ACCESS_TOKEN && env.INSTAGRAM_IG_USER_ID);
+  const requestedLimit = request ? new URL(request.url).searchParams.get("limit") : "";
   return {
     officialApiConfigured,
     officialApiUrl: env.INSTAGRAM_API_URL || "https://graph.instagram.com",
     accessToken: env.INSTAGRAM_ACCESS_TOKEN || "",
     igUserId: env.INSTAGRAM_IG_USER_ID || "",
+    postLimit: boundedPositiveInteger(requestedLimit || env.INSTAGRAM_POST_LIMIT, DEFAULT_POST_LIMIT, MAX_POST_LIMIT),
     maxActionsPerHour: positiveInteger(env.AUTOMATION_MAX_ACTIONS_PER_HOUR, DEFAULT_ACTION_LIMITS.perHour),
     maxActionsPerDay: positiveInteger(env.AUTOMATION_MAX_ACTIONS_PER_DAY, DEFAULT_ACTION_LIMITS.perDay),
     initialBackoffSeconds: positiveInteger(env.AUTOMATION_INITIAL_BACKOFF_SECONDS, 300),
@@ -157,23 +161,34 @@ async function loadInstagramPosts(env, config) {
 async function fetchOfficialInstagramMedia(env, config) {
   const url = new URL(`${config.officialApiUrl.replace(/\/$/, "")}/${encodeURIComponent(config.igUserId)}/media`);
   url.searchParams.set("fields", "id,caption,media_url,thumbnail_url,permalink,media_type,timestamp");
-  url.searchParams.set("limit", "30");
+  url.searchParams.set("limit", String(config.postLimit));
   url.searchParams.set("access_token", config.accessToken);
 
-  const body = await respectfulTextFetch(url.toString(), {
-    env,
-    config,
-    action: "official_api_fetch",
-    headers: { Accept: "application/json" }
-  });
-  const payload = JSON.parse(body);
-  return (payload.data || [])
-    .filter((item) => (item.thumbnail_url || item.media_url) && item.permalink)
-    .map((item) => ({
-      image: item.thumbnail_url || item.media_url,
-      caption: item.caption || "",
-      url: item.permalink
-    }));
+  const posts = [];
+  let nextUrl = url.toString();
+
+  while (nextUrl && posts.length < config.postLimit) {
+    const body = await respectfulTextFetch(nextUrl, {
+      env,
+      config,
+      action: "official_api_fetch",
+      headers: { Accept: "application/json" }
+    });
+    const payload = JSON.parse(body);
+    for (const item of payload.data || []) {
+      const image = item.thumbnail_url || item.media_url;
+      if (!image || !item.permalink) continue;
+      posts.push({
+        image,
+        caption: item.caption || "",
+        url: item.permalink
+      });
+      if (posts.length >= config.postLimit) break;
+    }
+    nextUrl = posts.length < config.postLimit ? payload.paging?.next || "" : "";
+  }
+
+  return posts;
 }
 
 async function scrapePublicProfile(env, config) {
@@ -188,7 +203,7 @@ async function scrapePublicProfile(env, config) {
     },
     cf: { cacheTtl: FRESH_TTL_SECONDS, cacheEverything: true }
   });
-  return extractPostsFromHtml(html);
+  return extractPostsFromHtml(html, config.postLimit);
 }
 
 async function respectfulTextFetch(url, options) {
@@ -496,6 +511,10 @@ function positiveInteger(value, fallback) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function boundedPositiveInteger(value, fallback, max) {
+  return Math.min(positiveInteger(value, fallback), max);
+}
+
 function hostForLog(value) {
   try {
     return new URL(value).host;
@@ -504,7 +523,8 @@ function hostForLog(value) {
   }
 }
 
-export function extractPostsFromHtml(html) {
+export function extractPostsFromHtml(html, limit = DEFAULT_POST_LIMIT) {
+  const postLimit = boundedPositiveInteger(limit, DEFAULT_POST_LIMIT, MAX_POST_LIMIT);
   const candidates = [];
 
   for (const match of html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
@@ -525,7 +545,7 @@ export function extractPostsFromHtml(html) {
     const images = [...html.matchAll(/"(?:display_url|image_url|thumbnail_src|thumbnail_url)"\s*:\s*"(https:[^"]+)"/g)];
     const captions = [...html.matchAll(/"(?:caption|accessibility_caption|text)"\s*:\s*"([^"]{3,2000})"/g)];
     const codes = [...html.matchAll(/"(?:shortcode|code)"\s*:\s*"([A-Za-z0-9_-]{5,})"/g)];
-    for (let index = 0; index < Math.min(images.length, 30); index += 1) {
+    for (let index = 0; index < Math.min(images.length, postLimit); index += 1) {
       candidates.push({
         image: unescapeJsonUrl(images[index][1]),
         caption: captions[index] ? decodeHtml(captions[index][1]) : "",
@@ -541,7 +561,7 @@ export function extractPostsFromHtml(html) {
     const key = post.url !== PROFILE_URL ? post.url : post.image;
     if (!unique.has(key)) unique.set(key, post);
   }
-  return [...unique.values()].slice(0, 30);
+  return [...unique.values()].slice(0, postLimit);
 }
 
 function collectFromJson(value, output, seen = new WeakSet()) {

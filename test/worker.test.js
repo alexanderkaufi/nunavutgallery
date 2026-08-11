@@ -57,6 +57,16 @@ test("extracts and deduplicates posts from JSON-LD", () => {
   assert.equal(posts[0].priceLabel, "Price and availability on request");
 });
 
+test("extracts more than thirty posts when the source provides them", () => {
+  const items = Array.from({ length: 35 }, (_, index) => ({
+    image: { url: `https://cdn.example/art-${index}.jpg` },
+    description: `Artwork ${index}`,
+    url: `https://www.instagram.com/p/TEST${index}/`
+  }));
+  const html = `<script type="application/ld+json">${JSON.stringify(items)}</script>`;
+  assert.equal(extractPostsFromHtml(html, 100).length, 35);
+});
+
 test("rejects non-Instagram post links", () => {
   const post = normalizePost({
     image: "https://cdn.example/art.jpg",
