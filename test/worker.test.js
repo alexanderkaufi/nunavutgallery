@@ -1,6 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker, { extractPostsFromHtml, mediaObjectKeyForPost, normalizePost, redactPriceMentions } from "../src/worker.js";
+import worker, {
+  classifyProtection,
+  extractPostsFromHtml,
+  mediaObjectKeyForPost,
+  normalizePost,
+  parseRetryAfter,
+  redactPriceMentions,
+  requireManualConfirmation
+} from "../src/worker.js";
 
 test("recognizes sold status and hides explicit prices", () => {
   const post = normalizePost({
@@ -79,4 +87,38 @@ test("blocks legacy category artwork assets", async () => {
     ASSETS: { fetch: () => new Response("legacy asset") }
   });
   assert.equal(response.status, 404);
+});
+
+test("classifies rate limits and access protection as stop signals", () => {
+  assert.equal(classifyProtection(new Response("", { status: 429 })), "rate_limited");
+  assert.equal(classifyProtection(new Response("", { status: 403 })), "access_protected");
+  assert.equal(
+    classifyProtection(new Response("", { status: 200 }), "<html>Captcha required</html>"),
+    "access_protected"
+  );
+  assert.equal(
+    classifyProtection(new Response("", { status: 200, headers: { "cf-mitigated": "challenge" } })),
+    "cloudflare_challenge"
+  );
+});
+
+test("parses Retry-After seconds and dates", () => {
+  assert.equal(parseRetryAfter("120"), 120);
+
+  const previousNow = Date.now;
+  Date.now = () => Date.parse("2026-08-11T10:00:00Z");
+  try {
+    assert.equal(parseRetryAfter("Tue, 11 Aug 2026 10:02:00 GMT"), 120);
+  } finally {
+    Date.now = previousNow;
+  }
+});
+
+test("requires manual confirmation for critical actions", () => {
+  assert.throws(() => requireManualConfirmation("comment"), /requires manual confirmation/);
+  assert.doesNotThrow(() => requireManualConfirmation("comment", {
+    confirmed: true,
+    reason: "Gallery owner approved this single reply."
+  }));
+  assert.doesNotThrow(() => requireManualConfirmation("public_profile_fetch"));
 });

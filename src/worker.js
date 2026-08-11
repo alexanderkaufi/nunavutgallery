@@ -3,6 +3,31 @@ const FRESH_TTL_SECONDS = 21600;
 const STALE_TTL_SECONDS = 604800;
 const LAST_GOOD_KEY = "data/latest-instagram.json";
 const MEDIA_PREFIX = "media/instagram/";
+const AUTOMATION_STATE_KEY = "state/automation-policy.json";
+const DEFAULT_ACTION_LIMITS = {
+  perHour: 6,
+  perDay: 30
+};
+const CRITICAL_ACTIONS = new Set([
+  "like",
+  "follow",
+  "comment",
+  "send_message",
+  "mass_download"
+]);
+const PROTECTED_STATUS_CODES = new Set([401, 403, 407, 423, 429]);
+const PROTECTED_BODY_PATTERNS = [
+  /\bcaptcha\b/i,
+  /\bcloudflare\b/i,
+  /\bchecking your browser\b/i,
+  /\bchallenge-platform\b/i,
+  /\blog in\b/i,
+  /\blogin_required\b/i,
+  /\bsign in\b/i,
+  /\btemporarily blocked\b/i,
+  /\brate limit\b/i,
+  /\btoo many requests\b/i
+];
 const LEGACY_ASSET_PATHS = new Set([
   "/images/category-sculptures.jpg",
   "/images/category-prints.jpg",
@@ -51,15 +76,16 @@ async function handleInstagram(request, env, ctx) {
     return json({ ...cachedBody, stale: false }, 200, clientCacheHeaders());
   }
 
+  const config = automationConfig(env);
   try {
-    const posts = await scrapePublicProfile();
+    const posts = await loadInstagramPosts(env, config);
     if (posts.length) {
-      const mirroredPosts = await mirrorPostImages(posts, env);
+      const mirroredPosts = await mirrorPostImages(posts, env, config);
       const body = {
-        source: "public-instagram-html",
+        source: config.officialApiConfigured ? "official-instagram-api" : "public-instagram-html",
         fetchedAt: new Date().toISOString(),
         stale: false,
-        mirroredImages: hasArtworkCache(env),
+        mirroredImages: canStoreSourceContent(env, config),
         posts: mirroredPosts
       };
       const storedResponse = json(body, 200, {
@@ -67,13 +93,13 @@ async function handleInstagram(request, env, ctx) {
       });
       ctx.waitUntil(Promise.all([
         cache.put(cacheKey, storedResponse),
-        saveLastGood(env, body)
+        saveLastGood(env, body, config)
       ]));
       return json(body, 200, clientCacheHeaders());
     }
 
     if (cachedBody) return staleResponse(cachedBody);
-    const lastGood = await loadLastGood(env);
+    const lastGood = await loadLastGood(env, config);
     if (lastGood) return staleResponse(lastGood, "Instagram returned no readable public post data.");
     return json({
       error: "Instagram returned no readable public post data.",
@@ -81,7 +107,7 @@ async function handleInstagram(request, env, ctx) {
     }, 502, noStoreHeaders());
   } catch (error) {
     if (cachedBody) return staleResponse(cachedBody);
-    const lastGood = await loadLastGood(env);
+    const lastGood = await loadLastGood(env, config);
     if (lastGood) return staleResponse(lastGood, String(error?.message || error));
     return json({
       error: String(error?.message || error),
@@ -107,18 +133,99 @@ function noStoreHeaders() {
   return { "Cache-Control": "no-store" };
 }
 
-async function scrapePublicProfile() {
-  const response = await fetch(PROFILE_URL, {
+function automationConfig(env = {}) {
+  const officialApiConfigured = Boolean(env.INSTAGRAM_ACCESS_TOKEN && env.INSTAGRAM_IG_USER_ID);
+  return {
+    officialApiConfigured,
+    officialApiUrl: env.INSTAGRAM_API_URL || "https://graph.instagram.com",
+    accessToken: env.INSTAGRAM_ACCESS_TOKEN || "",
+    igUserId: env.INSTAGRAM_IG_USER_ID || "",
+    maxActionsPerHour: positiveInteger(env.AUTOMATION_MAX_ACTIONS_PER_HOUR, DEFAULT_ACTION_LIMITS.perHour),
+    maxActionsPerDay: positiveInteger(env.AUTOMATION_MAX_ACTIONS_PER_DAY, DEFAULT_ACTION_LIMITS.perDay),
+    initialBackoffSeconds: positiveInteger(env.AUTOMATION_INITIAL_BACKOFF_SECONDS, 300),
+    maxBackoffSeconds: positiveInteger(env.AUTOMATION_MAX_BACKOFF_SECONDS, 21600),
+    sourceContentStorageAllowed: env.SOURCE_CONTENT_STORAGE_ALLOWED === "true",
+    userAgent: env.AUTOMATION_USER_AGENT || "NunavutGalleryWebsite/1.0 (+https://www.nunavutgallery.com/)"
+  };
+}
+
+async function loadInstagramPosts(env, config) {
+  if (config.officialApiConfigured) return fetchOfficialInstagramMedia(env, config);
+  return scrapePublicProfile(env, config);
+}
+
+async function fetchOfficialInstagramMedia(env, config) {
+  const url = new URL(`${config.officialApiUrl.replace(/\/$/, "")}/${encodeURIComponent(config.igUserId)}/media`);
+  url.searchParams.set("fields", "id,caption,media_url,thumbnail_url,permalink,media_type,timestamp");
+  url.searchParams.set("limit", "30");
+  url.searchParams.set("access_token", config.accessToken);
+
+  const body = await respectfulTextFetch(url.toString(), {
+    env,
+    config,
+    action: "official_api_fetch",
+    headers: { Accept: "application/json" }
+  });
+  const payload = JSON.parse(body);
+  return (payload.data || [])
+    .filter((item) => (item.thumbnail_url || item.media_url) && item.permalink)
+    .map((item) => ({
+      image: item.thumbnail_url || item.media_url,
+      caption: item.caption || "",
+      url: item.permalink
+    }));
+}
+
+async function scrapePublicProfile(env, config) {
+  const html = await respectfulTextFetch(PROFILE_URL, {
+    env,
+    config,
+    action: "public_profile_fetch",
     headers: {
       Accept: "text/html,application/xhtml+xml",
       "Accept-Language": "en-CA,en;q=0.9",
-      "User-Agent": "Mozilla/5.0 (compatible; NunavutGalleryWebsite/1.0; +https://www.nunavutgallery.com/)"
+      "User-Agent": config.userAgent
     },
     cf: { cacheTtl: FRESH_TTL_SECONDS, cacheEverything: true }
   });
+  return extractPostsFromHtml(html);
+}
 
-  if (!response.ok) throw new Error(`Instagram responded with ${response.status}`);
-  return extractPostsFromHtml(await response.text());
+async function respectfulTextFetch(url, options) {
+  const { env, config, action } = options;
+  await assertAutomationAllowed(env, config, action);
+  await recordAutomationAction(env, config, action, "attempt", { host: hostForLog(url) });
+
+  const response = await fetch(url, {
+    headers: options.headers,
+    cf: options.cf
+  });
+  const retryAfterSeconds = parseRetryAfter(response.headers.get("Retry-After"));
+  const contentType = response.headers.get("Content-Type") || "";
+  const text = contentType.includes("text/") || contentType.includes("json") || contentType.includes("html")
+    ? await response.text()
+    : "";
+  const protection = classifyProtection(response, text);
+
+  if (protection) {
+    await pauseAutomation(env, config, action, protection, retryAfterSeconds);
+    await recordAutomationAction(env, config, action, "blocked", {
+      status: response.status,
+      protection,
+      retryAfterSeconds
+    });
+    throw new Error(`${action} stopped: ${protection}${retryAfterSeconds ? `; retry after ${retryAfterSeconds}s` : ""}`);
+  }
+
+  if (!response.ok) {
+    await noteAutomationFailure(env, config, action);
+    await recordAutomationAction(env, config, action, "failed", { status: response.status });
+    throw new Error(`${action} failed with HTTP ${response.status}`);
+  }
+
+  await clearAutomationFailure(env, action);
+  await recordAutomationAction(env, config, action, "success", { status: response.status });
+  return text;
 }
 
 async function handleMedia(request, env) {
@@ -143,17 +250,17 @@ async function handleMedia(request, env) {
   return new Response(request.method === "HEAD" ? null : object.body, { headers });
 }
 
-async function mirrorPostImages(posts, env) {
-  if (!hasArtworkCache(env)) return posts;
+async function mirrorPostImages(posts, env, config) {
+  if (!canStoreSourceContent(env, config)) return posts;
 
   const mirrored = [];
   for (let index = 0; index < posts.length; index += 1) {
-    mirrored.push(await mirrorPostImage(posts[index], index, env));
+    mirrored.push(await mirrorPostImage(posts[index], index, env, config));
   }
   return mirrored;
 }
 
-async function mirrorPostImage(post, index, env) {
+async function mirrorPostImage(post, index, env, config) {
   const key = mediaObjectKeyForPost(post, index);
   if (!key) return post;
 
@@ -161,14 +268,16 @@ async function mirrorPostImage(post, index, env) {
     const existing = await env.ARTWORK_CACHE.head(key);
     if (existing) return { ...post, image: `/${key}` };
 
-    const response = await fetch(post.image, {
+    const response = await respectfulBinaryFetch(post.image, {
+      env,
+      config,
+      action: "media_fetch",
       headers: {
         Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-        "User-Agent": "Mozilla/5.0 (compatible; NunavutGalleryWebsite/1.0; +https://www.nunavutgallery.com/)"
+        "User-Agent": config.userAgent
       },
       cf: { cacheTtl: STALE_TTL_SECONDS, cacheEverything: true }
     });
-    if (!response.ok) return post;
 
     const contentType = response.headers.get("Content-Type") || "image/jpeg";
     if (!contentType.toLowerCase().startsWith("image/")) return post;
@@ -190,16 +299,49 @@ async function mirrorPostImage(post, index, env) {
   }
 }
 
-async function saveLastGood(env, body) {
-  if (!hasArtworkCache(env)) return;
+async function respectfulBinaryFetch(url, options) {
+  const { env, config, action } = options;
+  await assertAutomationAllowed(env, config, action);
+  await recordAutomationAction(env, config, action, "attempt", { host: hostForLog(url) });
+
+  const response = await fetch(url, {
+    headers: options.headers,
+    cf: options.cf
+  });
+  const retryAfterSeconds = parseRetryAfter(response.headers.get("Retry-After"));
+  const protection = classifyProtection(response, "");
+
+  if (protection) {
+    await pauseAutomation(env, config, action, protection, retryAfterSeconds);
+    await recordAutomationAction(env, config, action, "blocked", {
+      status: response.status,
+      protection,
+      retryAfterSeconds
+    });
+    throw new Error(`${action} stopped: ${protection}`);
+  }
+
+  if (!response.ok) {
+    await noteAutomationFailure(env, config, action);
+    await recordAutomationAction(env, config, action, "failed", { status: response.status });
+    throw new Error(`${action} failed with HTTP ${response.status}`);
+  }
+
+  await clearAutomationFailure(env, action);
+  await recordAutomationAction(env, config, action, "success", { status: response.status });
+  return response;
+}
+
+async function saveLastGood(env, body, config = automationConfig(env)) {
+  if (!canStoreSourceContent(env, config)) return;
   await env.ARTWORK_CACHE.put(LAST_GOOD_KEY, JSON.stringify(body), {
     httpMetadata: { contentType: "application/json; charset=utf-8" },
     customMetadata: { savedAt: new Date().toISOString() }
   });
 }
 
-async function loadLastGood(env) {
-  if (!hasArtworkCache(env)) return null;
+async function loadLastGood(env, config = automationConfig(env)) {
+  if (!canStoreSourceContent(env, config)) return null;
   try {
     return await env.ARTWORK_CACHE.get(LAST_GOOD_KEY, "json");
   } catch {
@@ -207,8 +349,159 @@ async function loadLastGood(env) {
   }
 }
 
+function canStoreSourceContent(env, config = automationConfig(env)) {
+  return hasArtworkCache(env) && config.sourceContentStorageAllowed;
+}
+
 function hasArtworkCache(env) {
   return Boolean(env?.ARTWORK_CACHE);
+}
+
+async function assertAutomationAllowed(env, config, action, confirmation = {}) {
+  requireManualConfirmation(action, confirmation);
+  const state = await loadAutomationState(env);
+  const now = Date.now();
+  const pauseUntil = Date.parse(state.pausedUntilByAction?.[action] || "");
+  if (Number.isFinite(pauseUntil) && pauseUntil > now) {
+    throw new Error(`${action} paused until ${new Date(pauseUntil).toISOString()}`);
+  }
+
+  const actionTimes = (state.actionHistory?.[action] || []).filter((timestamp) => now - timestamp < 24 * 60 * 60 * 1000);
+  const hourCount = actionTimes.filter((timestamp) => now - timestamp < 60 * 60 * 1000).length;
+  if (hourCount >= config.maxActionsPerHour) {
+    await pauseAutomationUntil(env, action, actionTimes[0] + 60 * 60 * 1000, "hourly_limit");
+    throw new Error(`${action} hourly limit reached`);
+  }
+  if (actionTimes.length >= config.maxActionsPerDay) {
+    await pauseAutomationUntil(env, action, actionTimes[0] + 24 * 60 * 60 * 1000, "daily_limit");
+    throw new Error(`${action} daily limit reached`);
+  }
+
+  state.actionHistory = state.actionHistory || {};
+  state.actionHistory[action] = [...actionTimes, now];
+  await saveAutomationState(env, state);
+}
+
+export function requireManualConfirmation(action, confirmation = {}) {
+  if (!CRITICAL_ACTIONS.has(action)) return;
+  if (confirmation.confirmed === true && confirmation.reason) return;
+  throw new Error(`${action} requires manual confirmation`);
+}
+
+async function pauseAutomation(env, config, action, reason, retryAfterSeconds) {
+  const state = await loadAutomationState(env);
+  if (!retryAfterSeconds) {
+    state.failuresByAction = state.failuresByAction || {};
+    state.failuresByAction[action] = (state.failuresByAction[action] || 0) + 1;
+  }
+  const backoffSeconds = retryAfterSeconds || nextBackoffSeconds(state, config, action);
+  state.pausedUntilByAction = state.pausedUntilByAction || {};
+  state.pauseReasonsByAction = state.pauseReasonsByAction || {};
+  state.pausedUntilByAction[action] = new Date(Date.now() + backoffSeconds * 1000).toISOString();
+  state.pauseReasonsByAction[action] = reason;
+  await saveAutomationState(env, state);
+}
+
+async function pauseAutomationUntil(env, action, until, reason) {
+  const state = await loadAutomationState(env);
+  state.pausedUntilByAction = state.pausedUntilByAction || {};
+  state.pauseReasonsByAction = state.pauseReasonsByAction || {};
+  state.pausedUntilByAction[action] = new Date(until).toISOString();
+  state.pauseReasonsByAction[action] = reason;
+  await saveAutomationState(env, state);
+}
+
+async function noteAutomationFailure(env, config, action) {
+  const state = await loadAutomationState(env);
+  state.failuresByAction = state.failuresByAction || {};
+  state.failuresByAction[action] = (state.failuresByAction[action] || 0) + 1;
+  const backoffSeconds = nextBackoffSeconds(state, config, action);
+  state.pausedUntilByAction = state.pausedUntilByAction || {};
+  state.pauseReasonsByAction = state.pauseReasonsByAction || {};
+  state.pausedUntilByAction[action] = new Date(Date.now() + backoffSeconds * 1000).toISOString();
+  state.pauseReasonsByAction[action] = "transient_failure_backoff";
+  await saveAutomationState(env, state);
+}
+
+async function clearAutomationFailure(env, action) {
+  const state = await loadAutomationState(env);
+  if (!state.failuresByAction?.[action] && !state.pausedUntilByAction?.[action]) return;
+  if (state.failuresByAction) delete state.failuresByAction[action];
+  if (state.pausedUntilByAction) delete state.pausedUntilByAction[action];
+  if (state.pauseReasonsByAction) delete state.pauseReasonsByAction[action];
+  await saveAutomationState(env, state);
+}
+
+function nextBackoffSeconds(state, config, action) {
+  const failures = Math.max(1, state.failuresByAction?.[action] || 1);
+  const exponential = Math.min(config.maxBackoffSeconds, config.initialBackoffSeconds * 2 ** (failures - 1));
+  const jitter = 0.8 + Math.random() * 0.4;
+  return Math.max(1, Math.round(exponential * jitter));
+}
+
+async function loadAutomationState(env) {
+  if (!hasArtworkCache(env)) return {};
+  try {
+    return (await env.ARTWORK_CACHE.get(AUTOMATION_STATE_KEY, "json")) || {};
+  } catch {
+    return {};
+  }
+}
+
+async function saveAutomationState(env, state) {
+  if (!hasArtworkCache(env)) return;
+  await env.ARTWORK_CACHE.put(AUTOMATION_STATE_KEY, JSON.stringify(state), {
+    httpMetadata: { contentType: "application/json; charset=utf-8" },
+    customMetadata: { updatedAt: new Date().toISOString() }
+  });
+}
+
+async function recordAutomationAction(env, config, action, outcome, details = {}) {
+  const logEntry = {
+    level: outcome === "success" ? "info" : "warn",
+    at: new Date().toISOString(),
+    action,
+    outcome,
+    details
+  };
+  console.log(JSON.stringify(logEntry));
+  if (!hasArtworkCache(env) || env.AUTOMATION_PERSIST_LOGS !== "true") return;
+  const key = `logs/automation/${logEntry.at.replace(/[:.]/g, "-")}-${action}-${outcome}.json`;
+  await env.ARTWORK_CACHE.put(key, JSON.stringify(logEntry), {
+    httpMetadata: { contentType: "application/json; charset=utf-8" },
+    customMetadata: { action, outcome }
+  });
+}
+
+export function classifyProtection(response, body = "") {
+  if (response.headers.get("cf-mitigated") === "challenge") return "cloudflare_challenge";
+  if (PROTECTED_STATUS_CODES.has(response.status)) {
+    return response.status === 429 ? "rate_limited" : "access_protected";
+  }
+  const sample = String(body).slice(0, 250000);
+  return PROTECTED_BODY_PATTERNS.some((pattern) => pattern.test(sample)) ? "access_protected" : "";
+}
+
+export function parseRetryAfter(value) {
+  if (!value) return 0;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds);
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return 0;
+  return Math.max(0, Math.ceil((timestamp - Date.now()) / 1000));
+}
+
+function positiveInteger(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function hostForLog(value) {
+  try {
+    return new URL(value).host;
+  } catch {
+    return "unknown";
+  }
 }
 
 export function extractPostsFromHtml(html) {
